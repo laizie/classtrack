@@ -141,14 +141,37 @@ function buildDueParts(assignment: Assignment, defaultDueHour: number): Reminder
   };
 }
 
+/**
+ * The field separator inside a signature.
+ *
+ * It has to be a character that cannot appear in a title, a note, or a
+ * timestamp — otherwise a value could fake a field boundary and make two
+ * different reminders collapse to one signature, silently skipping an update.
+ * Unit Separator (U+001F) satisfies that, and `remindersScript.ts` already uses
+ * it as a field separator for the same reason.
+ *
+ * It is emphatically *not* NUL, which was the obvious choice and was wrong.
+ * A signature is written to SQLite and read back on the next pass, and
+ * `node:sqlite` binds strings NUL-terminated: it stores the whole value but
+ * reads it back truncated at the first NUL. So every signature came back as
+ * just the title, never matched the freshly-computed one, and every mirrored
+ * assignment was re-pushed to Reminders on every pass — forever. With enough
+ * links those updates consumed the entire pass budget, the create step was
+ * never reached, and the mirror froze partway through and began shedding links
+ * as calls crept past the per-call timeout.
+ *
+ * The tests could not see it: they build a link and compare in memory, so the
+ * value never crossed the boundary where it was destroyed. That is what
+ * appleReminderLinkRepo.test.ts now covers.
+ *
+ * Written as an escape rather than a literal control character, so this file
+ * stays plain text to grep and every other text tool (AUDIT L1).
+ */
+const SIGNATURE_SEPARATOR = '\u001f';
+
 function buildSignature(title: string, body: string, due: ReminderDueParts): string {
   const stamp = `${due.year}-${due.month}-${due.day}T${due.hour}:${due.minute}`;
-  // Separator is written as an escape, never a literal NUL byte — a raw NUL in a
-  // source file makes it binary to grep and every other text tool (AUDIT L1).
-  // NUL is the right choice because it can't appear in a title, a note, or a
-  // timestamp, so no value can fake a field boundary and make two different
-  // reminders produce one signature — which would silently skip an update.
-  return [title, body, stamp].join('\u0000');
+  return [title, body, stamp].join(SIGNATURE_SEPARATOR);
 }
 
 function planReminder(

@@ -279,6 +279,15 @@ export async function createReminder(listName: string, reminder: PlannedReminder
  * Scoped to our own list rather than searching every reminder the user owns:
  * `whose id is` walks the collection, and walking one class list is cheap while
  * walking a life's worth of reminders is not.
+ *
+ * All four fields are set in ONE `set properties` rather than four assignments.
+ * Reminders charges per Apple Event, not per byte, and the cost is startling:
+ * measured on a real list, four separate sets took ~14s and the single batched
+ * set took ~5s for exactly the same result. That is the difference between an
+ * update comfortably inside SCRIPT_TIMEOUT_MS and one sitting close enough to
+ * the ceiling that ordinary load — iCloud syncing, Reminders.app in the
+ * foreground — pushes it over, at which point the call is killed, the caller
+ * assumes the reminder is gone, and the link is dropped.
  */
 export async function updateReminder(
   listName: string,
@@ -295,10 +304,7 @@ export async function updateReminder(
        tell application "Reminders"
          tell list listName
            set r to first reminder whose id is theId
-           set name of r to theName
-           set body of r to theBody
-           set due date of r to d
-           set remind me date of r to d
+           set properties of r to {name:theName, body:theBody, due date:d, remind me date:d}
          end tell
          return "ok"
        end tell
