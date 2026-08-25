@@ -611,8 +611,19 @@
    blockquote precedent exactly: a hairline in --line, never a thick coloured
    side-stripe (that would break both the One Lamp Rule and the ban on decorative
    stripes). It's doing structural work here — showing what belongs to what — and
-   1px is enough to do it, because the indent is already carrying the hierarchy. */
-.studeo-bn .bn-block-content[data-content-type='slide'] + .bn-block-group {
+   1px is enough to do it, because the indent is already carrying the hierarchy.
+
+   On the selector: a block's children live in a .bn-block-group inside the same
+   .bn-block as the block's own content, so the obvious spelling is
+   `.bn-block-content[data-content-type='slide'] + .bn-block-group`. That matches
+   nothing. BlockNote renders a *React* custom block inside an extra
+   `.react-renderer` wrapper, so the group is a sibling of that wrapper rather
+   than of .bn-block-content — one level further out than for a built-in block,
+   which is not wrapped. Hence :has() from the container, which doesn't care how
+   deep the content sits. Both depths are listed so this keeps working if the
+   wrapper ever goes away. */
+.studeo-bn .bn-block:has(> .bn-block-content[data-content-type='slide']) > .bn-block-group,
+.studeo-bn .bn-block:has(> * > .bn-block-content[data-content-type='slide']) > .bn-block-group {
   border-left: 1px solid var(--line);
   margin-left: 0.55rem;
   padding-left: 0.9rem;
@@ -620,8 +631,9 @@
 
 /* Folding a slide takes its notes with it. BlockNote mirrors any non-default prop
    onto the DOM node as a data- attribute, so `collapsed: true` gives us the hook —
-   which is the only reason the collapse can reach a sibling group React never
-   renders. (A default-valued prop is NOT mirrored, hence 'true' only.) */
-.studeo-bn .bn-block-content[data-content-type='slide'][data-collapsed='true'] + .bn-block-group {
+   which is the only reason the collapse can reach a group React never renders.
+   (A default-valued prop is NOT mirrored, hence 'true' only.) */
+.studeo-bn .bn-block:has(> .bn-block-content[data-content-type='slide'][data-collapsed='true']) > .bn-block-group,
+.studeo-bn .bn-block:has(> * > .bn-block-content[data-content-type='slide'][data-collapsed='true']) > .bn-block-group {
   display: none;
 }
