@@ -656,6 +656,9 @@ export const IPC = {
   SYLLABUS: {
     EXTRACT_PDF: 'syllabus:extract-pdf',
   },
+  SLIDES: {
+    PICK_PDF: 'slides:pick-pdf',
+  },
   APPLE_MUSIC: {
     STATUS:         'apple_music:status',
     PLAYBACK:       'apple_music:playback',
@@ -693,6 +696,18 @@ export const IPC = {
 export type ExtractPdfResult =
   | { canceled: true }
   | { canceled: false; text: string; fileName: string };
+
+/**
+ * Result of picking a lecture-slides PDF. Unlike the syllabus flow above, main hands
+ * back the raw BYTES rather than extracted text: turning a page into a picture needs a
+ * canvas, and main deliberately has none (see main/pdf/extractPdfText.ts — it stubs
+ * DOMMatrix precisely to keep the native canvas dependency out of the app). So main does
+ * the part only main may do (touch the filesystem) and the renderer, which has a real
+ * canvas, rasterizes each page.
+ */
+export type PickPdfResult =
+  | { canceled: true }
+  | { canceled: false; data: Uint8Array; fileName: string };
 
 // ─── window.api contract ──────────────────────────────────────────────────────
 // This interface is implemented by preload.ts and consumed by the renderer.
@@ -858,6 +873,12 @@ export interface WindowApi {
     /** Open-dialog + extract the text from a chosen syllabus PDF (done in main).
      *  Rejects on a read/extract failure or a scanned PDF with no selectable text. */
     extractPdf(): Promise<ExtractPdfResult>;
+  };
+  slides: {
+    /** Open-dialog + read a lecture-slides PDF, returning its raw bytes for the
+     *  renderer to rasterize into slide images. Rejects if the file is unreadable
+     *  or over the size ceiling. */
+    pickPdf(): Promise<PickPdfResult>;
   };
   /** Mirrors upcoming assignments into an Apple Reminders list, which iCloud carries
    *  to the phone — the only path that alerts you with the laptop shut. */

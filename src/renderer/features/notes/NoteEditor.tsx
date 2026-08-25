@@ -11,13 +11,16 @@ import { BlockNoteView } from '@blocknote/mantine';
 import { filterSuggestionItems } from '@blocknote/core';
 // eslint-disable-next-line import/no-unresolved -- subpath export; resolved by TS via the package "exports" map
 import { en } from '@blocknote/core/locales';
-import { History, CalendarDays, X } from 'lucide-react';
+import { History, CalendarDays, X, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { studeoSchema } from './codeBlock';
 import ImageLightbox from './ImageLightbox';
 import NoteLinkBar from './NoteLinkBar';
 import LinkPickerDialog, { type PickItem } from './LinkPickerDialog';
 import NotePickerDialog from './NotePickerDialog';
 import VersionHistoryDialog from './VersionHistoryDialog';
+import SlideImportDialog, { type SlideImportState } from './SlideImportDialog';
+import { renderPdfSlides, pdfPageCount } from './pdfSlides';
+import { clampSlideText } from './slideBlock';
 import { studeoSlashItems } from './noteSlashItems';
 import { TurnIntoDragHandleMenu } from './TurnIntoMenu';
 import { useCaretAutoScroll } from './useCaretAutoScroll';
@@ -79,6 +82,19 @@ function blockPlainText(content: any): string {
   return content.map((c: any) => (typeof c?.text === 'string' ? c.text : '')).join('').trim();
 }
 
+// Ids of every slide block in a document, at any nesting depth. Drives the collapse-all
+// control, which only appears once a note actually holds slides. Walks loosely rather than
+// against BlockNote's generic Block type, for the same reason blockPlainText does.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- BlockNote blocks are generically typed
+function collectSlideIds(blocks: any[]): string[] {
+  const ids: string[] = [];
+  for (const block of blocks ?? []) {
+    if (block?.type === 'slide') ids.push(block.id);
+    if (Array.isArray(block?.children)) ids.push(...collectSlideIds(block.children));
+  }
+  return ids;
+}
+
 // A note with an empty/blank document should start with BlockNote's default empty paragraph
 // (pass undefined), not an empty array — an empty array is not valid initial content.
 function parseInitial(contentJson: string) {
@@ -118,6 +134,13 @@ export default function NoteEditor({ note }: { note: Note }) {
   const [dateOpen, setDateOpen] = useState(false);
   const [noteDate, setNoteDate] = useState(note.note_date);
   const [flash, setFlash] = useState<string | null>(null);
+  // Slide import: progress for the dialog, and whether the note holds any slides at all
+  // (which is what decides if the collapse-all control is worth showing).
+  const [slideImport, setSlideImport] = useState<SlideImportState | null>(null);
+  const [hasSlides, setHasSlides] = useState(
+    () => collectSlideIds(parseInitial(note.content_json) ?? []).length > 0,
+  );
+  const slideAbort = useRef<AbortController | null>(null);
 
   function showFlash(message: string) {
     setFlash(message);
@@ -168,6 +191,10 @@ export default function NoteEditor({ note }: { note: Note }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flushContent, AUTOSAVE_MS);
     autoDetectCodeLanguages();
+    // Cheap enough to recompute here (a shallow walk of the block tree), and it keeps the
+    // collapse-all control honest when the last slide is deleted or the first is pasted in.
+    const nowHasSlides = collectSlideIds(editor.document).length > 0;
+    setHasSlides((was) => (was === nowHasSlides ? was : nowHasSlides));
   }
 
   // Auto-pick a language for code blocks the user hasn't set one on, so syntax highlighting
@@ -194,10 +221,15 @@ export default function NoteEditor({ note }: { note: Note }) {
     }
   }
 
-  // Flush any pending edit when the editor unmounts (route change / app close).
+  // Flush any pending edit when the editor unmounts (route change / app close), and stop
+  // any slide import still running — it inserts blocks into this editor, so letting it
+  // continue past unmount would be writing into a document nobody is looking at.
   // Runs once: mutate is read through a ref, so an empty dep list can't go stale.
   useEffect(() => {
-    return () => flushContent();
+    return () => {
+      slideAbort.current?.abort();
+      flushContent();
+    };
   }, []);
 
   function saveTitle() {
@@ -253,6 +285,108 @@ export default function NoteEditor({ note }: { note: Note }) {
     }
   }
 
+  // ── Slide deck import ────────────────────────────────────────────────────────
+  // Main picks and reads the PDF (filesystem access stays on the trusted side); the
+  // renderer rasterizes each page, because rasterizing needs a canvas and main has none
+  // by design — see pdfSlides.ts. Pages land in the note one at a time as they finish,
+  // so a long deck fills in visibly instead of appearing all at once at the end.
+  async function importSlides() {
+    if (slideImport) return; // one import at a time
+
+    let picked;
+    try {
+      picked = await window.api.slides.pickPdf();
+    } catch (err) {
+      showFlash(err instanceof Error ? err.message : "Couldn't open that PDF");
+      return;
+    }
+    if (picked.canceled) return;
+
+    const deck = picked.fileName;
+    const controller = new AbortController();
+    slideAbort.current = controller;
+    setSlideImport({ deck, page: 0, total: 0 });
+
+    // The slash command runs on a block still holding the leftover "/" text. Remember it
+    // so an empty one can be cleared afterwards rather than stranded above the deck —
+    // the same swap every built-in block command does.
+    const anchor = editor.getTextCursorPosition().block;
+    const anchorWasEmpty =
+      anchor.type === 'paragraph' && blockPlainText(anchor.content) === '';
+    let after = anchor.id;
+    let added = 0;
+
+    try {
+      // Counted up front so the progress bar can be truthful rather than indeterminate.
+      const total = await pdfPageCount(picked.data);
+      setSlideImport({ deck, page: 0, total });
+
+      await renderPdfSlides(
+        picked.data,
+        async (slide, progress) => {
+          // Reuses the note's existing image pipeline, so slides are ordinary note assets:
+          // stored as files (never inlined into the document JSON) and swept up with the
+          // rest of the note's folder when the note is deleted.
+          const src = await window.api.media.save({
+            noteId: note.id,
+            ext: slide.ext,
+            data: slide.data,
+          });
+          const inserted = editor.insertBlocks(
+            [
+              {
+                type: 'slide',
+                props: {
+                  src,
+                  page: slide.page,
+                  deck,
+                  aspect: slide.aspect,
+                  text: clampSlideText(slide.text),
+                },
+                // One empty paragraph so there is already somewhere to type *inside* the
+                // slide. Without it your first keystroke would land on a sibling block and
+                // the note would never actually be attached to the slide.
+                children: [{ type: 'paragraph' }],
+              },
+            ],
+            after,
+            'after',
+          );
+          after = inserted[0].id;
+          added++;
+          setSlideImport({ deck, page: progress.page, total: progress.total });
+        },
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) {
+        showFlash(added > 0 ? `Stopped — kept ${added} slide${added === 1 ? '' : 's'}` : 'Import stopped');
+      } else if (added === 0) {
+        showFlash("That PDF has no pages we could read");
+      } else {
+        showFlash(`Added ${added} slide${added === 1 ? '' : 's'}`);
+      }
+    } catch (err) {
+      showFlash(err instanceof Error ? err.message : "Couldn't import that deck");
+    } finally {
+      // Clear the leftover empty paragraph exactly once, on every exit path — finished,
+      // stopped, or failed. Doing it in both the try and the catch meant a throw *after*
+      // the first removal would remove an id that no longer exists, and that second throw
+      // escapes the catch as an unhandled rejection.
+      if (added > 0 && anchorWasEmpty) editor.removeBlocks([anchor.id]);
+      slideAbort.current = null;
+      setSlideImport(null);
+    }
+  }
+
+  /** Fold every slide in the note shut (or open them all again). With a long deck this is
+   *  the difference between a note you can skim and one you scroll for a minute. */
+  function setAllSlidesCollapsed(collapsed: boolean) {
+    const ids = collectSlideIds(editor.document);
+    for (const id of ids) editor.updateBlock(id, { props: { collapsed } });
+    if (ids.length > 0) showFlash(collapsed ? 'Slides collapsed' : 'Slides expanded');
+  }
+
   const slashActions = {
     onLinkCourse: () => setPicker('course'),
     onLinkAssignment: () => setPicker('assignment'),
@@ -260,6 +394,7 @@ export default function NoteEditor({ note }: { note: Note }) {
     onChecklistToTask: checklistToTask,
     onLinkNotes: () => setNotePickerOpen(true),
     onInsertMath: insertMath,
+    onImportSlides: importSlides,
   };
 
   // Insert a bullet list of links to other notes (study guide / exam review). Links use the
@@ -340,6 +475,28 @@ export default function NoteEditor({ note }: { note: Note }) {
           >
             <X size={12} />
           </button>
+        )}
+        {/* Only worth its space in a note that actually has a deck in it, so it appears
+            with the first slide and leaves again with the last. */}
+        {hasSlides && (
+          <>
+            <button
+              onClick={() => setAllSlidesCollapsed(true)}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted hover:bg-surface-hi hover:text-ink transition-colors"
+              title="Collapse every slide"
+            >
+              <ChevronsDownUp size={13} />
+              Collapse
+            </button>
+            <button
+              onClick={() => setAllSlidesCollapsed(false)}
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted hover:bg-surface-hi hover:text-ink transition-colors"
+              title="Expand every slide"
+            >
+              <ChevronsUpDown size={13} />
+              Expand
+            </button>
+          </>
         )}
         <button
           onClick={() => setHistoryOpen(true)}
@@ -452,6 +609,9 @@ export default function NoteEditor({ note }: { note: Note }) {
           onConfirm={applyNoteDate}
           onClose={() => setDateOpen(false)}
         />
+      )}
+      {slideImport && (
+        <SlideImportDialog state={slideImport} onCancel={() => slideAbort.current?.abort()} />
       )}
       {historyOpen && (
         <VersionHistoryDialog

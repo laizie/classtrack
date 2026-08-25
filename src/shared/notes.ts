@@ -26,11 +26,33 @@ function inlineText(content: unknown): string {
     .join('');
 }
 
+/**
+ * Text a block carries in its *props* rather than its content.
+ *
+ * An imported lecture slide is a picture, so it has no inline content at all — but it
+ * stores the page's own extracted text on a `text` prop precisely so search can reach it.
+ * Without this, searching for a term that was on the slide (rather than in what you typed
+ * underneath it) would find nothing, which is the wrong answer for a note that literally
+ * contains that slide.
+ *
+ * Matched on the block type rather than on "any prop called text", so a future block that
+ * happens to keep unrelated text in a prop isn't silently swept into the search index.
+ */
+function propsText(b: Record<string, unknown>): string {
+  if (b.type !== 'slide') return '';
+  const props = b.props;
+  if (!props || typeof props !== 'object') return '';
+  const text = (props as Record<string, unknown>).text;
+  return typeof text === 'string' ? text : '';
+}
+
 /** Extract all visible text from one block, including table cells and nested children. */
 function blockText(block: unknown): string {
   if (!block || typeof block !== 'object') return '';
   const b = block as Record<string, unknown>;
   const parts: string[] = [];
+
+  parts.push(propsText(b));
 
   const content = b.content;
   if (content && typeof content === 'object' && !Array.isArray(content)) {

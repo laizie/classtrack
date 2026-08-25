@@ -21,6 +21,7 @@ import { registerReminderHandlers } from './main/ipc/registerReminderHandlers';
 import { registerAppHandlers } from './main/ipc/registerAppHandlers';
 import { registerFeedHandlers } from './main/ipc/registerFeedHandlers';
 import { registerSyllabusHandlers } from './main/ipc/registerSyllabusHandlers';
+import { registerSlideHandlers } from './main/ipc/registerSlideHandlers';
 import { startReminderScheduler, setReminderNavigationHandler } from './main/reminders';
 import { IPC } from './shared/types';
 import type { ReminderNavTarget } from './shared/types';
@@ -63,6 +64,7 @@ function registerIpcHandlers(): void {
   registerAppHandlers();
   registerFeedHandlers();
   registerSyllabusHandlers();
+  registerSlideHandlers();
   registerSpotifyHandlers();
   registerAppleMusicHandlers();
   registerAppleRemindersHandlers();

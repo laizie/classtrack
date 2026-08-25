@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardList, CalendarClock, ListTodo, Link2, Sigma } from 'lucide-react';
+import { BookOpen, ClipboardList, CalendarClock, ListTodo, Link2, Sigma, Presentation } from 'lucide-react';
 import type { DefaultReactSuggestionItem } from '@blocknote/react';
 
 export interface SlashActions {
@@ -8,6 +8,7 @@ export interface SlashActions {
   onChecklistToTask: () => void;
   onLinkNotes: () => void;
   onInsertMath: () => void;
+  onImportSlides: () => void;
 }
 
 /** Studeo-specific slash menu commands, grouped under "Studeo" below the default blocks. */
@@ -22,6 +23,16 @@ export function studeoSlashItems(actions: SlashActions): DefaultReactSuggestionI
       aliases: ['math', 'latex', 'equation', 'formula', 'tex', 'katex'],
       icon: <Sigma size={18} />,
       onItemClick: actions.onInsertMath,
+    },
+    {
+      // Second: this is the move you make once at the start of a lecture, and it's the
+      // one that sets the whole note up, so it wants to be easy to find.
+      title: 'Slides',
+      group: 'Studeo',
+      subtext: 'Import a slide deck PDF — one block per page, notes underneath',
+      aliases: ['slides', 'pdf', 'deck', 'lecture', 'powerpoint', 'ppt', 'import', 'presentation'],
+      icon: <Presentation size={18} />,
+      onItemClick: actions.onImportSlides,
     },
     {
       title: 'Link course',

@@ -1,6 +1,7 @@
 import { BlockNoteSchema, defaultBlockSpecs, createCodeBlockSpec } from '@blocknote/core';
 import { codeBlockOptions } from '@blocknote/code-block';
 import { mathBlockSpec } from './mathBlock';
+import { slideBlockSpec } from './slideBlock';
 
 // BlockNote's default code block lists all 48 Shiki languages. We curate the *menu* down to
 // the popular ones students actually reach for; each grammar still loads on demand (only when
@@ -61,5 +62,8 @@ export const studeoSchema = BlockNoteSchema.create({
     // schema is what the editor is built from — a block spec passed anywhere else
     // is ignored, same trap the code block hit above.
     math: mathBlockSpec,
+    // A page of an imported lecture deck, which carries your notes as its children
+    // (see slideBlock.tsx). Registered here for the same reason as the equation block.
+    slide: slideBlockSpec,
   },
 });

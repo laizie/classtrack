@@ -514,3 +514,114 @@
      `code-option-ink` in DESIGN.md's code-block scene. */
   color: #000000;
 }
+
+/* ── Imported slides ────────────────────────────────────────────────────────────
+   A slide block is one page of a lecture deck, and the notes you write about that
+   page are its BlockNote *children* — so the editor renders them in a sibling
+   .bn-block-group right after the slide's own content (a block container is
+   `blockContent blockGroup?`). Everything below is about making that parent/child
+   relationship legible, since the structure is real but invisible by default. */
+
+.studeo-bn .studeo-slide {
+  /* The deck is a reference you glance at, not the note itself. Held to a readable
+     width rather than the full measure so a 60-page import stays skimmable and the
+     notes underneath keep the visual weight. */
+  max-width: 640px;
+  margin: 0.35rem 0 0.15rem;
+  user-select: none;
+}
+
+/* The strip above each slide: the page number, the deck it came from, and the
+   fold control. Always visible — it's the only affordance for collapsing, and a
+   control that appears on hover is a control most people never find. */
+.studeo-bn .studeo-slide__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.25rem 0.15rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-align: left;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+.studeo-bn .studeo-slide__bar:hover {
+  color: var(--ink);
+}
+.studeo-bn .studeo-slide__bar:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.studeo-bn .studeo-slide__page {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* the number that changes down the page */
+}
+
+/* The filename, muted and allowed to shrink first — it matters only when a note
+   holds two decks and both restart at "Slide 1". */
+.studeo-bn .studeo-slide__deck {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* "3 notes" on a folded slide, so collapsing never hides work silently. */
+.studeo-bn .studeo-slide__count {
+  margin-left: auto;
+  padding-left: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+/* Slides are paper. Same mounted treatment as a note image (8px radius,
+   shadow-sm and nothing heavier — the Flat-By-Default Rule), on a white ground
+   because that's what was rasterized underneath the page. */
+.studeo-bn .studeo-slide__frame {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+.studeo-bn .studeo-slide__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.studeo-bn .studeo-slide__missing {
+  margin: 0;
+  padding: 1.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ── The connection ─────────────────────────────────────────────────────────────
+   A 1px neutral rule down the left of a slide's children, following the
+   blockquote precedent exactly: a hairline in --line, never a thick coloured
+   side-stripe (that would break both the One Lamp Rule and the ban on decorative
+   stripes). It's doing structural work here — showing what belongs to what — and
+   1px is enough to do it, because the indent is already carrying the hierarchy. */
+.studeo-bn .bn-block-content[data-content-type='slide'] + .bn-block-group {
+  border-left: 1px solid var(--line);
+  margin-left: 0.55rem;
+  padding-left: 0.9rem;
+}
+
+/* Folding a slide takes its notes with it. BlockNote mirrors any non-default prop
+   onto the DOM node as a data- attribute, so `collapsed: true` gives us the hook —
+   which is the only reason the collapse can reach a sibling group React never
+   renders. (A default-valued prop is NOT mirrored, hence 'true' only.) */
+.studeo-bn .bn-block-content[data-content-type='slide'][data-collapsed='true'] + .bn-block-group {
+  display: none;
+}

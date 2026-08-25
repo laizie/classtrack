@@ -75,6 +75,54 @@ describe('blocksToPlainText', () => {
   });
 });
 
+describe('blocksToPlainText — imported slides', () => {
+  // A slide is a picture: it has no inline content at all, and everything searchable
+  // about the page itself lives on its `text` prop. If the walker skipped props, a note
+  // containing a whole lecture deck would be invisible to a search for anything that was
+  // printed ON those slides.
+  const slideDoc = (props: Record<string, unknown>, children: unknown[] = []) =>
+    JSON.stringify([{ id: 's1', type: 'slide', props, children }]);
+
+  it('indexes the text extracted from a slide', () => {
+    const json = slideDoc({ src: 'studeo-asset://n/1.webp', page: 4, text: "Dijkstra's algorithm" });
+    expect(blocksToPlainText(json)).toBe("Dijkstra's algorithm");
+  });
+
+  it('keeps the slide text and the notes written under it together', () => {
+    const json = slideDoc(
+      { page: 4, text: 'Shortest paths' },
+      [
+        {
+          id: 'c1',
+          type: 'bulletListItem',
+          content: [{ type: 'text', text: 'greedy, needs non-negative weights', styles: {} }],
+          children: [],
+        },
+      ],
+    );
+    // One line per top-level block: the slide and its children flatten together, which is
+    // what makes a search for either half surface this note.
+    expect(blocksToPlainText(json)).toBe('Shortest paths greedy, needs non-negative weights');
+  });
+
+  it('is quiet for a slide with no extractable text (a scanned or image-only page)', () => {
+    expect(blocksToPlainText(slideDoc({ src: 'studeo-asset://n/1.webp', page: 1 }))).toBe('');
+  });
+
+  it('ignores a text prop on any other block type', () => {
+    // Deliberately narrow: only `slide` opts its props into the index, so a future block
+    // that happens to keep unrelated text in a prop can't silently pollute search.
+    const json = JSON.stringify([{ id: 'x', type: 'paragraph', props: { text: 'not indexed' }, content: [], children: [] }]);
+    expect(blocksToPlainText(json)).toBe('');
+  });
+
+  it('survives a malformed slide block rather than throwing', () => {
+    expect(blocksToPlainText(JSON.stringify([{ type: 'slide' }]))).toBe('');
+    expect(blocksToPlainText(JSON.stringify([{ type: 'slide', props: null }]))).toBe('');
+    expect(blocksToPlainText(JSON.stringify([{ type: 'slide', props: { text: 42 } }]))).toBe('');
+  });
+});
+
 describe('plainTextToBlocks', () => {
   it('returns an empty document for empty input', () => {
     expect(plainTextToBlocks('')).toBe('[]');
