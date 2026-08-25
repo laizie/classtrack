@@ -5,7 +5,7 @@ import {
   saveReminderLink,
   deleteReminderLink,
 } from '../db/repositories/appleReminderLinkRepo';
-import { planReminderSync } from '../../shared/appleReminderSync';
+import { planReminderSync, COMPLETED_SIGNATURE } from '../../shared/appleReminderSync';
 import { createSyncScheduler } from './syncScheduler';
 import type { AppleRemindersStatus } from '../../shared/types';
 import { getSetting, setSetting } from '../settings';
@@ -253,7 +253,12 @@ async function runSyncPass(): Promise<void> {
     // Keep the link on success: the assignment still exists, and if it's
     // un-completed later the next sync updates this same reminder instead of
     // adding one. On failure it was most likely deleted on the phone — forget it.
-    if (!result.ok) deleteReminderLink(assignmentId);
+    //
+    // The signature becomes the sentinel, which is what makes this a one-shot:
+    // without it the planner has no way to tell "finished" from "finished and
+    // already ticked off", and re-issues the same complete on every pass.
+    if (result.ok) saveReminderLink(assignmentId, reminderId, COMPLETED_SIGNATURE);
+    else deleteReminderLink(assignmentId);
     if (!step(result.ok, result.value)) break;
   }
 

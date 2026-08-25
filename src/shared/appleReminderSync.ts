@@ -78,6 +78,30 @@ export interface ReminderSyncPlan {
  */
 export type CompletedAction = 'complete' | 'remove';
 
+/**
+ * The signature stored against a link whose reminder has been ticked off.
+ *
+ * Completing is not a one-shot operation the way creating is: the link is kept
+ * on purpose, so that un-completing in Studeo re-opens the same reminder rather
+ * than making a second one. But nothing recorded that the tick-off had already
+ * happened, so a finished assignment was re-completed on every pass, forever —
+ * and because `isDone` is checked before the date window, it never aged out
+ * either. One item costs a second or two; a semester's worth of finished work
+ * accumulates until it fills the pass budget and the mirror stalls, which is
+ * the same failure the signature bug caused by a different route.
+ *
+ * Storing it in the signature column rather than adding one is deliberate: the
+ * column already means "what state did we last push", and this is a state we
+ * last pushed. It also gives un-completing the right behaviour for free — the
+ * sentinel can never equal a freshly-computed signature, so the assignment
+ * coming back to life plans an update, which rewrites the fields *and* clears
+ * the completed flag.
+ *
+ * It cannot collide with a real signature: buildSignature always joins three
+ * fields and so always contains two separators, and this contains none.
+ */
+export const COMPLETED_SIGNATURE = 'completed';
+
 export interface PlanOptions {
   horizonDays?: number;
   overdueGraceDays?: number;
@@ -237,8 +261,14 @@ export function planReminderSync(
       // `remove` puts it in the same bucket as an aged-out or deleted assignment,
       // which is exactly right: the executor already drops the link when it
       // removes, so un-completing later recreates the reminder from scratch.
-      const bucket = completedAction === 'remove' ? plan.remove : plan.complete;
-      bucket.push({ assignmentId: assignment.id, reminderId: link.reminder_id });
+      if (completedAction === 'remove') {
+        plan.remove.push({ assignmentId: assignment.id, reminderId: link.reminder_id });
+        continue;
+      }
+      // Already ticked off on a previous pass — nothing to say to Reminders.
+      // This is what stops a finished assignment being re-completed forever.
+      if (link.signature === COMPLETED_SIGNATURE) continue;
+      plan.complete.push({ assignmentId: assignment.id, reminderId: link.reminder_id });
       continue;
     }
 

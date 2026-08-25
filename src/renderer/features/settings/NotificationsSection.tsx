@@ -58,12 +58,31 @@ export default function NotificationsSection() {
   // call returns the whole status, so there's one place the row's copy comes from.
   const [phone, setPhone] = useState<AppleRemindersStatus | null>(null);
 
+  /**
+   * Poll while this section is on screen.
+   *
+   * The sync runs on its own timer in main, so the row's copy goes stale the
+   * moment a pass changes anything — and it was only ever fetched on mount and
+   * after the user pressed something. Leaving Settings open meant sitting on a
+   * failure that had since resolved itself, or worse, on a success while a sync
+   * was quietly failing. The row's whole job is to not let a stale count imply
+   * all is well, and it was doing exactly that.
+   *
+   * Ten seconds against a five-minute sync is deliberate overkill: the call
+   * reads in-memory state plus one small SELECT, and the pass it is watching for
+   * can start at any moment. The interval is torn down with the section, so it
+   * costs nothing on every other screen.
+   */
   useEffect(() => {
     let active = true;
-    window.api.appleReminders.status()
-      .then(status => { if (active) setPhone(status); })
-      .catch(() => { /* row stays hidden rather than showing a broken control */ });
-    return () => { active = false; };
+    const read = () => {
+      window.api.appleReminders.status()
+        .then(status => { if (active) setPhone(status); })
+        .catch(() => { /* row stays hidden rather than showing a broken control */ });
+    };
+    read();
+    const timer = setInterval(read, 10_000);
+    return () => { active = false; clearInterval(timer); };
   }, []);
 
   async function handlePhoneToggle(enabled: boolean) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planReminderSync, type ReminderLink } from '../appleReminderSync';
+import { planReminderSync, COMPLETED_SIGNATURE, type ReminderLink } from '../appleReminderSync';
 import type { Assignment, AssignmentType, Course } from '../types';
 
 const NOW = new Date(2026, 7, 15, 10, 0); // Aug 15 2026, local
@@ -134,6 +134,55 @@ describe('finishing and removing', () => {
   it('removes the mirror when an unfinished assignment ages out', () => {
     const plan = planReminderSync([assign('stale', '2026-07-01')], COURSES, [link('stale', 'sig')], NOW);
     expect(plan.remove).toEqual([{ assignmentId: 'stale', reminderId: 'rem-stale' }]);
+  });
+
+  // Completing keeps the link on purpose, so the planner needs some way to tell
+  // "finished" from "finished and already ticked off". Without one it re-issued
+  // the same complete on every pass, for the life of the assignment.
+  it('does not tick off a reminder it has already ticked off', () => {
+    const done = assign('a', '2026-08-20', { status: 'completed' });
+    const plan = planReminderSync([done], COURSES, [link('a', COMPLETED_SIGNATURE)], NOW);
+
+    expect(plan.complete).toEqual([]);
+    expect(plan.update).toEqual([]);
+    expect(plan.remove).toEqual([]);
+    expect(plan.create).toEqual([]);
+  });
+
+  it('keeps a finished assignment quiet even long after it aged out', () => {
+    // isDone is checked before the date window, so a completed link never
+    // reaches the aged-out branch — it would have re-completed forever.
+    const old = assign('a', '2026-01-05', { status: 'completed' });
+    const plan = planReminderSync([old], COURSES, [link('a', COMPLETED_SIGNATURE)], NOW);
+
+    expect(plan.complete).toEqual([]);
+    expect(plan.remove).toEqual([]);
+  });
+
+  it('re-opens the reminder when a finished assignment is un-completed', () => {
+    // The sentinel can never equal a freshly-computed signature, so coming back
+    // to life plans an update — which rewrites the fields and clears the flag.
+    const reopened = assign('a', '2026-08-20');
+    const plan = planReminderSync([reopened], COURSES, [link('a', COMPLETED_SIGNATURE)], NOW);
+
+    expect(plan.update).toHaveLength(1);
+    expect(plan.update[0].reminderId).toBe('rem-a');
+    expect(plan.complete).toEqual([]);
+  });
+
+  it('still removes a ticked-off mirror when the assignment is deleted', () => {
+    // The sentinel must not make a link unreachable: the assignment is gone, so
+    // the reminder has to go too, ticked off or not.
+    const plan = planReminderSync([], COURSES, [link('a', COMPLETED_SIGNATURE)], NOW);
+    expect(plan.remove).toEqual([{ assignmentId: 'a', reminderId: 'rem-a' }]);
+  });
+
+  it("still deletes a ticked-off mirror under completedAction 'remove'", () => {
+    const done = assign('a', '2026-08-20', { status: 'completed' });
+    const plan = planReminderSync(
+      [done], COURSES, [link('a', COMPLETED_SIGNATURE)], NOW, { completedAction: 'remove' },
+    );
+    expect(plan.remove).toEqual([{ assignmentId: 'a', reminderId: 'rem-a' }]);
   });
 });
 

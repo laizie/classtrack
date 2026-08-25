@@ -288,6 +288,13 @@ export async function createReminder(listName: string, reminder: PlannedReminder
  * the ceiling that ordinary load — iCloud syncing, Reminders.app in the
  * foreground — pushes it over, at which point the call is killed, the caller
  * assumes the reminder is gone, and the link is dropped.
+ *
+ * `completed:false` is in that record because the planner only ever asks for an
+ * update on an assignment that is *not* done, so an update is always also the
+ * un-complete path. Without it, finishing an assignment and then re-opening it
+ * left the reminder ticked off on the phone forever: the fields were rewritten
+ * but the flag that hides it from the list was not. It costs nothing to include
+ * — it is the same single Apple Event either way.
  */
 export async function updateReminder(
   listName: string,
@@ -304,7 +311,7 @@ export async function updateReminder(
        tell application "Reminders"
          tell list listName
            set r to first reminder whose id is theId
-           set properties of r to {name:theName, body:theBody, due date:d, remind me date:d}
+           set properties of r to {name:theName, body:theBody, due date:d, remind me date:d, completed:false}
          end tell
          return "ok"
        end tell
