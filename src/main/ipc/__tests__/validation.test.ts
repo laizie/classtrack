@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
 import { createTestDb } from '../../db/__tests__/helpers';
-import { ipcMainStub, invoke, resetHandlers } from './harness';
+import { invoke, resetHandlers } from './harness';
 
 const mockDb = vi.hoisted(() => ({ current: null as DatabaseSync | null }));
 

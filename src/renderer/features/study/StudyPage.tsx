@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Play, Pause, RotateCcw, SkipForward, Timer, Music2, Maximize2, Activity } from 'lucide-react';
 import {
   useTimerStore, FOCUS_OPTIONS, BREAK_OPTIONS,

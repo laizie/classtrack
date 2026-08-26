@@ -45,8 +45,21 @@ interface Props {
 
 /** A GitHub-contributions-style grid of focus time, plus streak/total stat chips. */
 export default function StudyHeatmap({ sessions, compact = false }: Props) {
-  const now = new Date();
-  const grid = useMemo(() => buildHeatmap(sessions, WEEKS, now), [sessions]);
+  // Everything below is a per-DAY fact, so it should be recomputed when the day turns
+  // over — and not more often than that. `new Date()` is a different value on every
+  // render, so listing it as a dependency would defeat the memo entirely; leaving it out
+  // (which is what these did) went the other way, pinning the grid and the streak to
+  // whatever "now" was when `sessions` last changed. Study past midnight and the heatmap
+  // stayed anchored to yesterday.
+  //
+  // A day key is stable within a day and changes exactly once at midnight, which is the
+  // granularity these actually want: both buildHeatmap and currentStreak call
+  // startOfDay() on whatever they're given, so midnight-today is equivalent to the
+  // instant but memoises properly.
+  const dayKey = startOfDay(new Date()).getTime();
+  const now = useMemo(() => new Date(dayKey), [dayKey]);
+
+  const grid = useMemo(() => buildHeatmap(sessions, WEEKS, now), [sessions, now]);
 
   const stats = useMemo(() => {
     const weekStart = addDays(startOfDay(now), -now.getDay());
@@ -55,7 +68,7 @@ export default function StudyHeatmap({ sessions, compact = false }: Props) {
       total:   totalFocusMinutes(sessions),
       thisWeek: focusMinutesSince(sessions, weekStart),
     };
-  }, [sessions]);
+  }, [sessions, now]);
 
   // A column is labelled when the 1st of a month falls inside it, so "Mar" sits over
   // the week March actually starts — not over the first week whose *Sunday* happens to
