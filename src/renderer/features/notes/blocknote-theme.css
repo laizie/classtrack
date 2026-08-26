@@ -523,10 +523,11 @@
    relationship legible, since the structure is real but invisible by default. */
 
 .studeo-bn .studeo-slide {
-  /* The deck is a reference you glance at, not the note itself. Held to a readable
-     width rather than the full measure so a 60-page import stays skimmable and the
-     notes underneath keep the visual weight. */
-  max-width: 640px;
+  /* Width is set inline from the block's own prop (a percentage of the text column, so
+     it holds its proportions as the window changes). The default leaves a deck reading
+     as a reference you glance at rather than as the note itself — a 60-page import stays
+     skimmable and the notes underneath keep the visual weight. */
+  max-width: 100%;
   margin: 0.35rem 0 0.15rem;
   user-select: none;
 }
@@ -540,21 +541,35 @@
   gap: 0.5rem;
   width: 100%;
   padding: 0.25rem 0.15rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+/* The fold control is the bar's main target and takes the space; "Match all" is pushed
+   to the far end by the margin on .studeo-slide__all. */
+.studeo-bn .studeo-slide__fold {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--muted);
+  color: inherit;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: inherit;
   line-height: 1;
   text-align: left;
+  padding: 0;
   border-radius: 6px;
   transition: color 0.15s;
 }
-.studeo-bn .studeo-slide__bar:hover {
+.studeo-bn .studeo-slide__fold:hover {
   color: var(--ink);
 }
-.studeo-bn .studeo-slide__bar:focus-visible {
+.studeo-bn .studeo-slide__fold:focus-visible,
+.studeo-bn .studeo-slide__all:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -582,10 +597,52 @@
   opacity: 0.8;
 }
 
+/* Live width while dragging. */
+.studeo-bn .studeo-slide__size {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Push "Match all" to the trailing edge — unless the size readout already claimed the
+   auto margin mid-drag, in which case this just sits after it. Quiet until the slide is
+   hovered: it's a once-per-deck action, and a note is for reading. */
+.studeo-bn .studeo-slide__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  padding: 0.15rem 0.4rem;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.15s, background-color 0.15s;
+}
+.studeo-bn .studeo-slide__size + .studeo-slide__all {
+  margin-left: 0.5rem;
+}
+.studeo-bn .studeo-slide:hover .studeo-slide__all,
+.studeo-bn .studeo-slide__all:focus-visible {
+  opacity: 1;
+}
+.studeo-bn .studeo-slide__all:hover {
+  color: var(--ink);
+  background-color: var(--surface-hi);
+}
+
 /* Slides are paper. Same mounted treatment as a note image (8px radius,
    shadow-sm and nothing heavier — the Flat-By-Default Rule), on a white ground
    because that's what was rasterized underneath the page. */
 .studeo-bn .studeo-slide__frame {
+  position: relative; /* anchors the resize handle */
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -598,6 +655,34 @@
   height: 100%;
   object-fit: contain;
 }
+/* Drag the right edge to resize. Deliberately the same idiom as the image resize handle
+   above: a wide invisible hit area with a small visible pill painted inside it, so the
+   grab zone is ~18px while what you see stays discreet, and it fades in with the slide
+   rather than sitting on it permanently. */
+.studeo-bn .studeo-slide__handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  width: 18px;
+  height: 100%;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.12s;
+  background-image: linear-gradient(var(--ink), var(--ink));
+  background-size: 6px 40px;
+  background-position: center;
+  background-repeat: no-repeat;
+  touch-action: none; /* let the pointer drag rather than scrolling the note */
+}
+.studeo-bn .studeo-slide:hover .studeo-slide__handle {
+  opacity: 0.55;
+}
+.studeo-bn .studeo-slide__handle:hover,
+.studeo-bn .studeo-slide__handle:active {
+  opacity: 0.9;
+}
+
 .studeo-bn .studeo-slide__missing {
   margin: 0;
   padding: 1.25rem;
