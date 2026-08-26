@@ -7,8 +7,11 @@ import { parseBackupFileName } from '../../shared/backupRotation';
 import { backupsDir } from '../db/backups';
 import { getLoginItemState, setOpenAtLogin } from '../loginItem';
 import { getDb, getDbPath, closeDb, snapshotInto, validateBackupFile } from '../db/connection';
-import { getAssetsRoot } from '../media';
+import { getAssetsRoot, sweepOrphanAssets } from '../media';
 import { getAllSettings, setSetting } from '../settings';
+import { collectAssetRefs } from '../../shared/notes';
+import { listAllContentJson } from '../db/repositories/noteRepo';
+import { listAllVersionContentJson } from '../db/repositories/noteVersionRepo';
 import { checkForUpdatesNow } from '../updater';
 
 // The allowlist itself lives in shared/settingsKeys.ts so main and the renderer read the
@@ -97,6 +100,21 @@ export function registerAppHandlers(): void {
     } catch (err) {
       return { saved: false, error: err instanceof Error ? err.message : 'Backup failed' };
     }
+  });
+
+  // Reclaim image files nothing points at any more. Deleting a picture or a slide from a
+  // note leaves its file on disk — only deleting the whole note cleans up — so this is the
+  // one thing that ever gets that space back.
+  //
+  // The reference set is gathered from every note (archived included) AND every stored
+  // version, because both can still be put back on screen. Over-collecting is the safe
+  // error here: a missed reference means a file is deleted while something still shows it.
+  ipcMain.handle(IPC.APP.SWEEP_ASSETS, () => {
+    const referenced = new Set<string>();
+    for (const json of [...listAllContentJson(), ...listAllVersionContentJson()]) {
+      for (const ref of collectAssetRefs(json)) referenced.add(ref);
+    }
+    return sweepOrphanAssets(referenced);
   });
 
   // Automatic backups run on their own in the main process (see db/backups.ts).

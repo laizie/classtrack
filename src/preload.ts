@@ -156,6 +156,7 @@ const api: WindowApi = {
     checkForUpdates: () => ipcRenderer.invoke(IPC.APP.CHECK_UPDATES),
     backupData: () => ipcRenderer.invoke(IPC.APP.BACKUP_DATA),
     restoreData: () => ipcRenderer.invoke(IPC.APP.RESTORE_DATA),
+    sweepAssets: () => ipcRenderer.invoke(IPC.APP.SWEEP_ASSETS),
     listBackups: () => ipcRenderer.invoke(IPC.APP.LIST_BACKUPS),
     revealBackups: () => ipcRenderer.invoke(IPC.APP.REVEAL_BACKUPS),
     getLoginItem: () => ipcRenderer.invoke(IPC.APP.GET_LOGIN_ITEM),

@@ -55,3 +55,15 @@ export function snapshotNoteContent(noteId: string, contentJson: string, force =
     .run(crypto.randomUUID(), noteId, contentJson, new Date().toISOString());
   prune(noteId);
 }
+
+/**
+ * The content of every stored snapshot. Feeds the asset sweep: a version is a document
+ * that can still be put back on screen, so anything it points at is still live — even
+ * when the note's current content has long since dropped it.
+ */
+export function listAllVersionContentJson(): string[] {
+  const rows = getDb()
+    .prepare('SELECT content_json FROM note_versions')
+    .all() as { content_json: string }[];
+  return rows.map((r) => r.content_json);
+}

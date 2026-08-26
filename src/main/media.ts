@@ -1,5 +1,5 @@
 import { app, protocol } from 'electron';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 // Note images live as real files on disk under the app's data folder — never base64-inlined
@@ -108,4 +108,59 @@ export function registerAssetProtocol(): void {
       },
     });
   });
+}
+
+/**
+ * Delete asset files that no note points at any more, and report what was reclaimed.
+ *
+ * Why this is needed at all: assets are only ever cleaned up when an entire note is
+ * deleted (deleteNoteAssets, above). Delete an image or a slide *inside* a note you keep
+ * and the file stays on disk forever, with nothing left referencing it. That was a slow
+ * drip when a note held two or three images; a slide deck makes it sixty files in one
+ * undo.
+ *
+ * `referenced` must be the complete set of "<noteId>/<filename>" keys from EVERY document
+ * that can still be shown — live notes, archived notes (archive is a recoverable trash,
+ * not a delete), and every row in note_versions. That last one is the easy thing to
+ * forget and the expensive thing to get wrong: restoring a two-week-old version of a
+ * lecture note has to bring its slides back with it, and it can't if the sweep decided
+ * they were garbage because the current document no longer mentions them.
+ *
+ * Nothing outside the assets root is ever touched, and a directory is removed only once
+ * it is empty.
+ */
+export function sweepOrphanAssets(referenced: Set<string>): { removed: number; bytes: number } {
+  const root = assetsRoot();
+  if (!existsSync(root)) return { removed: 0, bytes: 0 };
+
+  let removed = 0;
+  let bytes = 0;
+
+  for (const noteDir of readdirSync(root)) {
+    // Anything that isn't a note-id folder didn't come from us — leave it alone.
+    if (!UUID_RE.test(noteDir)) continue;
+    const dirPath = path.join(root, noteDir);
+    if (!statSync(dirPath).isDirectory()) continue;
+
+    for (const file of readdirSync(dirPath)) {
+      if (referenced.has(`${noteDir.toLowerCase()}/${file}`)) continue;
+      const filePath = path.join(dirPath, file);
+      try {
+        bytes += statSync(filePath).size;
+        rmSync(filePath, { force: true });
+        removed++;
+      } catch {
+        // A file that vanished under us, or one we can't stat, is not worth failing over.
+      }
+    }
+
+    // Tidy up a folder whose note is long gone.
+    try {
+      if (readdirSync(dirPath).length === 0) rmSync(dirPath, { recursive: true, force: true });
+    } catch {
+      /* leave it */
+    }
+  }
+
+  return { removed, bytes };
 }

@@ -122,3 +122,29 @@ export function noteTitleFromBlocks(contentJson: string, maxLength = 80): string
   if (!firstLine) return '';
   return firstLine.length > maxLength ? firstLine.slice(0, maxLength).trimEnd() + '…' : firstLine;
 }
+
+/**
+ * Every note-asset reference in a serialized BlockNote document, as "<noteId>/<filename>"
+ * keys matching the on-disk layout under the app's note-assets folder.
+ *
+ * Deliberately a scan of the raw JSON text rather than a walk of known block types. The
+ * caller is deciding which files are safe to DELETE, so the only tolerable error is
+ * over-collecting: a URL this misses is a file that gets reclaimed while a note still
+ * points at it, which shows up later as a broken image nobody can explain. Today the
+ * references live on an image block's `url` and a slide block's `src`, but "today" is the
+ * only word doing work there — a future block, a nested prop, or a pasted-in link would
+ * all be invisible to a type-aware walk and are all caught by this.
+ *
+ * A URL appears verbatim in the JSON because JSON.stringify does not escape forward
+ * slashes, so no unescaping is needed.
+ */
+export function collectAssetRefs(contentJson: string): string[] {
+  if (!contentJson) return [];
+  // noteId is a UUID directory; the filename is a UUID plus an image extension.
+  const re = /studeo-asset:\/\/([0-9a-fA-F-]{36})\/([A-Za-z0-9._-]+)/g;
+  const refs = new Set<string>();
+  for (const m of contentJson.matchAll(re)) {
+    refs.add(`${m[1].toLowerCase()}/${m[2]}`);
+  }
+  return [...refs];
+}

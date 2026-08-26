@@ -92,6 +92,13 @@ signing.env
 .vite/
 dist/
 
+# Stray build artifacts at the repo root. The renderer's entry is ./index.html and the
+# main process bundle belongs in .vite/build — but a build run with the wrong root or a
+# bare `vite` invoked from here drops a minified main.js/preload.js beside the source,
+# where it looks enough like a source file to get committed by a wide `git add`.
+/main.js
+/preload.js
+
 # Electron-Forge
 out/
 

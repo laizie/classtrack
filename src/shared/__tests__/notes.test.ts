@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { blocksToPlainText, noteTitleFromBlocks, plainTextToBlocks } from '../notes';
+import { blocksToPlainText, collectAssetRefs, noteTitleFromBlocks, plainTextToBlocks } from '../notes';
 
 // A small but realistic BlockNote document covering the shapes the walker must handle:
 // styled inline runs, a link, nested children, and a table.
@@ -161,5 +161,45 @@ describe('noteTitleFromBlocks', () => {
     const title = noteTitleFromBlocks(blocks, 80);
     expect(title.length).toBe(81); // 80 chars + ellipsis
     expect(title.endsWith('…')).toBe(true);
+  });
+});
+
+describe('collectAssetRefs', () => {
+  const url = (note: string, file: string) => `studeo-asset://${note}/${file}`;
+  const NOTE_A = '11111111-1111-4111-8111-111111111111';
+  const NOTE_B = '22222222-2222-4222-8222-222222222222';
+
+  it('finds an image block url and a slide block src', () => {
+    const json = JSON.stringify([
+      { type: 'image', props: { url: url(NOTE_A, 'a.png') } },
+      { type: 'slide', props: { src: url(NOTE_A, 'b.webp'), page: 1 } },
+    ]);
+    expect(collectAssetRefs(json).sort()).toEqual([`${NOTE_A}/a.png`, `${NOTE_A}/b.webp`]);
+  });
+
+  it('finds references nested in children and de-duplicates them', () => {
+    const json = JSON.stringify([
+      {
+        type: 'slide',
+        props: { src: url(NOTE_A, 'a.webp') },
+        children: [{ type: 'image', props: { url: url(NOTE_A, 'a.webp') } }],
+      },
+    ]);
+    expect(collectAssetRefs(json)).toEqual([`${NOTE_A}/a.webp`]);
+  });
+
+  it('keeps references to another note\'s folder', () => {
+    // A note can legitimately embed an image stored under a different note's id — a
+    // pasted duplicate, or content moved between pages. Scoping the sweep per note would
+    // reclaim a file that is still on screen.
+    const json = JSON.stringify([{ type: 'image', props: { url: url(NOTE_B, 'x.png') } }]);
+    expect(collectAssetRefs(json)).toEqual([`${NOTE_B}/x.png`]);
+  });
+
+  it('returns nothing for documents with no assets, and never throws on junk', () => {
+    expect(collectAssetRefs('')).toEqual([]);
+    expect(collectAssetRefs('[]')).toEqual([]);
+    expect(collectAssetRefs('not json at all')).toEqual([]);
+    expect(collectAssetRefs('studeo-asset://not-a-uuid/x.png')).toEqual([]);
   });
 });

@@ -642,6 +642,7 @@ export const IPC = {
     SET_FULLSCREEN: 'app:set-fullscreen',
     GET_FULLSCREEN: 'app:get-fullscreen',
     CHECK_UPDATES:  'app:check-updates',
+    SWEEP_ASSETS:   'app:sweep-assets',
   },
   APPLE_REMINDERS: {
     STATUS:               'apple_reminders:status',
@@ -843,6 +844,8 @@ export interface WindowApi {
     restoreData(): Promise<{ restored: boolean; canceled?: boolean; error?: string }>;
     /** How many automatic snapshots are on disk, and the local day (YYYY-MM-DD) of the
      *  newest — so Settings can show that the rolling backups are actually running. */
+    /** Reclaim note images nothing references any more. Returns what was freed. */
+    sweepAssets(): Promise<{ removed: number; bytes: number }>;
     listBackups(): Promise<{ count: number; newestDay: string | null }>;
     /** Open the automatic-backups folder in Finder / Explorer. */
     revealBackups(): Promise<void>;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Info, FolderOpen, HardDriveDownload, HardDriveUpload, History, RefreshCw } from 'lucide-react';
+import { Info, FolderOpen, HardDriveDownload, HardDriveUpload, History, RefreshCw, Eraser } from 'lucide-react';
 import { version as appVersion } from '../../../../package.json';
 import { SectionHeading, SettingsCard, SettingsRow, CardButton } from './components';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -14,6 +14,9 @@ export default function AboutSection() {
   // 'idle' before the first check; afterwards the answer main gave us.
   const [updateState, setUpdateState] = useState<'idle' | 'checking'>('idle');
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
+
+  const [sweepState, setSweepState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
+  const [sweepDetail, setSweepDetail] = useState('');
 
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [restoreState, setRestoreState] = useState<'idle' | 'restoring' | 'done' | 'failed'>('idle');
@@ -45,6 +48,22 @@ export default function AboutSection() {
     } catch {
       setBackupState('failed');
       setBackupDetail('');
+    }
+  }
+
+  async function handleSweep() {
+    setSweepState('working');
+    try {
+      const { removed, bytes } = await window.api.app.sweepAssets();
+      setSweepState('done');
+      setSweepDetail(
+        removed === 0
+          ? 'Nothing to clean up — every image is still in use.'
+          : `Freed ${formatBytes(bytes)} from ${removed} unused image${removed === 1 ? '' : 's'}.`,
+      );
+    } catch {
+      setSweepState('failed');
+      setSweepDetail('');
     }
   }
 
@@ -90,6 +109,16 @@ export default function AboutSection() {
     : updateResult.status === 'downloaded'  ? `An update${updateResult.version ? ` (${updateResult.version})` : ''} is ready — restart Studeo to finish installing it.`
     : updateResult.status === 'unsupported' ? 'Updates only run in an installed build, not while developing.'
     : `Couldn't check — ${updateResult.message}`;
+
+  // Bytes as something a person reads. Sizes here are one image to a whole deck, so kB/MB
+  // is the whole useful range.
+  const formatBytes = (n: number): string =>
+    n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} kB`;
+
+  const sweepDescription =
+    sweepState === 'done'     ? sweepDetail
+    : sweepState === 'failed' ? "Couldn't check for unused images. Please try again."
+    : 'Deleting a picture or a slide leaves its file behind. This reclaims the space — anything a note or its history still shows is kept.';
 
   const backupDescription =
     backupState === 'done'   ? `Saved to ${backupDetail}`
@@ -157,6 +186,15 @@ export default function AboutSection() {
         >
           <CardButton onClick={() => window.api.app.revealBackups()}>
             Show backups
+          </CardButton>
+        </SettingsRow>
+        <SettingsRow
+          icon={<Eraser size={17} />}
+          label="Clean up unused images"
+          description={sweepDescription}
+        >
+          <CardButton onClick={handleSweep} disabled={sweepState === 'working'}>
+            {sweepState === 'working' ? 'Checking…' : 'Clean up'}
           </CardButton>
         </SettingsRow>
         <SettingsRow

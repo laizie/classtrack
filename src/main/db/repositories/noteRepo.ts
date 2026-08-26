@@ -221,3 +221,16 @@ export function deleteNote(id: string): void {
   // ON DELETE CASCADE removes child sub-pages; the FTS triggers clean the index.
   getDb().prepare('DELETE FROM notes WHERE id = ?').run(id);
 }
+
+/**
+ * The content of every note in the database — archived ones included.
+ *
+ * Only used to work out which asset files are still referenced, so this deliberately
+ * ignores the archived filter every other query here respects: archiving is a
+ * recoverable trash, and a note sitting in it must keep its images for the day it's
+ * restored.
+ */
+export function listAllContentJson(): string[] {
+  const rows = getDb().prepare('SELECT content_json FROM notes').all() as { content_json: string }[];
+  return rows.map((r) => r.content_json);
+}
