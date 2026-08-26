@@ -5,6 +5,7 @@ import { useCourse } from '../../lib/queries/useCourses';
 import { useCreateAssignments } from '../../lib/queries/useAssignments';
 import { ASSIGNMENT_TYPES, type AssignmentType } from '../../../shared/types';
 import { parseSyllabus } from '../../../shared/syllabusParser';
+import { extractPdfText } from '../../lib/pdf';
 import { generateRepeats } from '../../../shared/repeat';
 import { cn } from '../../lib/utils';
 import { errorReason } from '../../lib/errors';
@@ -212,15 +213,25 @@ export default function BatchAddPage() {
 
   // ── Import ────────────────────────────────────────────────────────────────
 
-  // Pull text out of a syllabus PDF (file dialog + extraction happen in main).
-  // We only fill the textarea — the user reviews/edits, then hits "Parse & add".
+  // Pull text out of a syllabus PDF. Main opens the dialog and reads the file (the
+  // renderer has no filesystem access); the text extraction itself happens here, with the
+  // renderer's bundled pdfjs. We only fill the textarea — the user reviews/edits, then
+  // hits "Parse & add".
   async function handlePickPdf() {
     setExtracting(true);
     setImportError('');
     try {
-      const res = await window.api.syllabus.extractPdf();
+      const res = await window.api.pdf.pick('Choose a syllabus PDF');
       if (res.canceled) return;
-      setSyllabusText(res.text);
+      const text = await extractPdfText(res.data);
+      if (!text.trim()) {
+        setImportError(
+          "We couldn't find any selectable text — this looks like a scanned or image-only " +
+            'PDF. Try copy-pasting the syllabus text instead.',
+        );
+        return;
+      }
+      setSyllabusText(text);
       setPdfFileName(res.fileName);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Couldn't read that PDF.");

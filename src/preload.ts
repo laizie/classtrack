@@ -178,12 +178,8 @@ const api: WindowApi = {
     fetchIcs: (url: string) => ipcRenderer.invoke(IPC.FEEDS.FETCH_ICS, url),
   },
 
-  syllabus: {
-    extractPdf: () => ipcRenderer.invoke(IPC.SYLLABUS.EXTRACT_PDF),
-  },
-
-  slides: {
-    pickPdf: () => ipcRenderer.invoke(IPC.SLIDES.PICK_PDF),
+  pdf: {
+    pick: (title?: string) => ipcRenderer.invoke(IPC.PDF.PICK, title),
   },
 
   appleReminders: {

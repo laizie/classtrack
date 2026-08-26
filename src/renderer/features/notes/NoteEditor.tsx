@@ -19,7 +19,7 @@ import LinkPickerDialog, { type PickItem } from './LinkPickerDialog';
 import NotePickerDialog from './NotePickerDialog';
 import VersionHistoryDialog from './VersionHistoryDialog';
 import SlideImportDialog, { type SlideImportState } from './SlideImportDialog';
-import { renderPdfSlides, pdfPageCount } from './pdfSlides';
+import { renderPdfSlides, pdfPageCount } from '../../lib/pdf';
 import { clampSlideText } from './slideBlock';
 import { studeoSlashItems } from './noteSlashItems';
 import { TurnIntoDragHandleMenu } from './TurnIntoMenu';
@@ -295,7 +295,7 @@ export default function NoteEditor({ note }: { note: Note }) {
 
     let picked;
     try {
-      picked = await window.api.slides.pickPdf();
+      picked = await window.api.pdf.pick('Choose a slides PDF');
     } catch (err) {
       showFlash(err instanceof Error ? err.message : "Couldn't open that PDF");
       return;

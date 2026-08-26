@@ -654,11 +654,8 @@ export const IPC = {
   FEEDS: {
     FETCH_ICS: 'feeds:fetch-ics',
   },
-  SYLLABUS: {
-    EXTRACT_PDF: 'syllabus:extract-pdf',
-  },
-  SLIDES: {
-    PICK_PDF: 'slides:pick-pdf',
+  PDF: {
+    PICK: 'pdf:pick',
   },
   APPLE_MUSIC: {
     STATUS:         'apple_music:status',
@@ -690,21 +687,10 @@ export const IPC = {
 } as const;
 
 /**
- * Result of picking + extracting text from a syllabus PDF (main opens the file
- * dialog, so there are no args). `canceled` discriminates the two outcomes; a
- * failed/empty extraction rejects the IPC call instead of returning here.
- */
-export type ExtractPdfResult =
-  | { canceled: true }
-  | { canceled: false; text: string; fileName: string };
-
-/**
- * Result of picking a lecture-slides PDF. Unlike the syllabus flow above, main hands
- * back the raw BYTES rather than extracted text: turning a page into a picture needs a
- * canvas, and main deliberately has none (see main/pdf/extractPdfText.ts — it stubs
- * DOMMatrix precisely to keep the native canvas dependency out of the app). So main does
- * the part only main may do (touch the filesystem) and the renderer, which has a real
- * canvas, rasterizes each page.
+ * Result of picking a PDF. Main hands back raw BYTES, never an interpretation of them:
+ * every PDF feature parses in the renderer, which has a canvas for rasterizing pages and
+ * is sandboxed for reading a document nobody here wrote. Main does only the part that
+ * requires it — touching the filesystem.
  */
 export type PickPdfResult =
   | { canceled: true }
@@ -872,16 +858,11 @@ export interface WindowApi {
     /** Fetch a remote .ics calendar feed by URL (done in main; returns raw text). */
     fetchIcs(url: string): Promise<{ text: string }>;
   };
-  syllabus: {
-    /** Open-dialog + extract the text from a chosen syllabus PDF (done in main).
-     *  Rejects on a read/extract failure or a scanned PDF with no selectable text. */
-    extractPdf(): Promise<ExtractPdfResult>;
-  };
-  slides: {
-    /** Open-dialog + read a lecture-slides PDF, returning its raw bytes for the
-     *  renderer to rasterize into slide images. Rejects if the file is unreadable
-     *  or over the size ceiling. */
-    pickPdf(): Promise<PickPdfResult>;
+  pdf: {
+    /** Open-dialog + read a PDF, returning its raw bytes for the renderer to
+     *  rasterize or extract text from. `title` labels the file dialog. Rejects if
+     *  the file is unreadable or over the size ceiling. */
+    pick(title?: string): Promise<PickPdfResult>;
   };
   /** Mirrors upcoming assignments into an Apple Reminders list, which iCloud carries
    *  to the phone — the only path that alerts you with the laptop shut. */

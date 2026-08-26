@@ -178,3 +178,42 @@ export async function pdfPageCount(data: Uint8Array): Promise<number> {
     await loadingTask.destroy();
   }
 }
+
+/**
+ * All the selectable text in a PDF, newline-separated, one line per visual line.
+ *
+ * Used by the syllabus importer, which feeds it to the pure parseSyllabus() in shared/ —
+ * and that treats one line as one assignment, so reconstructing the line breaks (via
+ * pdfjs's `hasEOL`) is the part that matters.
+ *
+ * This used to live in the main process. It moved here for two reasons. The packaging one
+ * is decisive: main kept pdfjs *external*, expecting to require it from node_modules at
+ * runtime, and the packaged app has no node_modules at all — so every syllabus import in
+ * a shipped build failed, and the handler blamed the user's file for it. The renderer
+ * bundles pdfjs properly, so here it simply works.
+ *
+ * The second reason is that this parses a document nobody in this app wrote. Doing that
+ * in main means doing it in a Node process with the filesystem in reach and no CSP over
+ * it; doing it here means doing it sandboxed, behind `script-src 'self'`. Main still owns
+ * reading the file off disk — it just hands over the bytes now.
+ *
+ * Returns '' for a scanned or image-only PDF; the caller decides how to say so.
+ */
+export async function extractPdfText(data: Uint8Array): Promise<string> {
+  const loadingTask = pdfjs.getDocument({ data: data.slice(), useSystemFonts: true });
+  const doc = await loadingTask.promise;
+  try {
+    const pages: string[] = [];
+    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+      const page = await doc.getPage(pageNum);
+      try {
+        pages.push(await pageText(page));
+      } finally {
+        page.cleanup();
+      }
+    }
+    return pages.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  } finally {
+    await loadingTask.destroy();
+  }
+}
