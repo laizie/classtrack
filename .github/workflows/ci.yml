@@ -5,6 +5,13 @@ on:
     branches: ['**']
   pull_request:
     branches: ['**']
+  # Lets a run be started by hand from the Actions tab or `gh workflow run ci.yml`.
+  # Build has always had this; CI didn't, so the only way to re-run it was to push
+  # again — which means an empty commit when the original run never happened. That
+  # is not hypothetical: during the Actions outage of 26 Aug 2026, GitHub accepted
+  # the v1.4.0 push and created no runs for it at all, and CI was the half that
+  # couldn't simply be restarted.
+  workflow_dispatch:
 
 jobs:
   test:
