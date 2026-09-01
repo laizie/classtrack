@@ -1,7 +1,7 @@
 {
   "name": "studeo",
   "productName": "Studeo",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A local-first desktop app for students to track courses, assignments, and study sessions.",
   "main": ".vite/build/main.js",
   "private": true,
